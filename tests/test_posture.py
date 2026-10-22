@@ -173,16 +173,27 @@ def test_the_mirror_of_a_posture_is_the_posture_of_the_mirror() -> None:
     # the permutation `symmetry.LEG_PERM` carries for per-foot quantities.
     from tasks.jumper.common.mdp.symmetry import LEG_PERM
 
-    twisted = _footprint(math.radians(10.0))
-    mirrored = twisted[LEG_PERM] * torch.tensor([1.0, -1.0])
-    # 1e-4 rather than the 1e-5 the other tests use: the robot's own footprint is
-    # not exactly mirror symmetric (LF sits at y = 0.0728 against RF's 0.072607,
-    # 0.2 mm apart), so mirroring a twisted footprint and re-fitting it lands
-    # 6e-5 rad -- 0.003 degrees -- from the exact negation. That is the model's
-    # asymmetry, not the estimator's error, and a tolerance tight enough to
-    # object to it would be pinning the URDF's rounding.
-    assert twist_from_footprint(mirrored).item() == pytest.approx(
-        -math.radians(10.0), abs=1e-4
+    def mirror(xy: torch.Tensor) -> torch.Tensor:
+        return xy[LEG_PERM] * torch.tensor([1.0, -1.0])
+
+    # The robot's own footprint is not mirror symmetric, so the mirror of the
+    # *untwisted* footprint already reads as a twist: with the V1.6 front pair
+    # (LF at (0.187123, 0.072818) against RF's (0.183590, -0.068983), 3.5 mm and
+    # 3.8 mm apart) it reads -1.68e-3 rad, 0.096 degrees. That offset is the
+    # model's asymmetry, not the estimator's error, and it is the same at every
+    # twist: the mirror of `R(-t) n` is `R(t)` applied to the mirror of `n`, and
+    # the Procrustes angle of a rotated footprint is the unrotated one's plus the
+    # rotation. So the offset is measured and taken out, and what is left is the
+    # exact negation (2e-8 off it, float32, measured with the V1.6 footprint).
+    #
+    # This replaced an absolute comparison at 1e-4, sized for the earlier model's
+    # 0.2 mm asymmetry (6e-5 rad). When `NOMINAL_FOOT_XY` was re-measured for V1.6
+    # the offset grew to 17x that tolerance and the test failed on the model, not
+    # on the mirror. A flipped sign in the mirror still fails here by 0.35 rad.
+    offset = twist_from_footprint(mirror(_footprint(0.0))).item()
+    mirrored = mirror(_footprint(math.radians(10.0)))
+    assert twist_from_footprint(mirrored).item() - offset == pytest.approx(
+        -math.radians(10.0), abs=1e-5
     )
 
 
