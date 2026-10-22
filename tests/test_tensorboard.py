@@ -160,8 +160,18 @@ def test_free_port_ignores_a_lingering_time_wait() -> None:
     browser tab held a connection when the server was terminated), so the probe
     would skip a perfectly usable 6006 and the URL would climb 6006 -> 6007 ->
     6008 run after run, which makes a bookmark worthless.
+
+    The listener sets `SO_REUSEADDR` because TensorBoard's does (werkzeug's
+    `BaseWSGIServer.allow_reuse_address = True`), and on Linux that matters: a
+    TIME_WAIT entry inherits the flag from its listener, and the kernel lets a
+    new socket bind over it only when **both** carry it. Without it here, Linux
+    (measured on 6.17) refuses the bind with or without the probe's flag, so the
+    test failed on a situation TensorBoard never leaves behind; BSD semantics,
+    macOS's, only look at the new socket's flag. With it, a probe *without*
+    `SO_REUSEADDR` still gets EADDRINUSE on 6.17 -- the failure this pins.
     """
     srv = socket.socket()
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     srv.bind(("127.0.0.1", 0))
     srv.listen(1)
     port = srv.getsockname()[1]
