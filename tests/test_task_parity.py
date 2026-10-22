@@ -60,6 +60,8 @@ NOT_LOCOMOTION = {
     "jumper.dance_dream_wings",
     "jumper.dance_maze",
     "jumper.dance_waist",
+    # The same, with a clip retargeted from a dance video.
+    "jumper.dance_catch",
     # One-shot gestures on the same machinery, each with a clip of its own, imported
     # from rl-wbc-fsm.
     "jumper.gesture_bow",
